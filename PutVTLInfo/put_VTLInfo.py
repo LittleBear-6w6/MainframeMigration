@@ -4,8 +4,8 @@ datasetFlag = 0
 
 outFile = open(outfile,'w',encoding='utf-8')
 
-with open(infile) as file_obuject:
-    for line in file_obuject:
+with open(infile) as file_object:
+    for line in file_object:
         if 'GDG BASE' in line:
             target='------'
             idx = line.find(target)
