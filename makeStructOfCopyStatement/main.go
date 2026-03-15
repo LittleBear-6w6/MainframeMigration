@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"strings"
 )
 
-// Item 抽出データを保持する構造体
 type Item struct {
 	Level int
 	Name  string
@@ -17,8 +17,7 @@ type Item struct {
 }
 
 func main() {
-	// 出力用のファイルを1つ作成
-	outFile, err := os.Create("analysis_result.txt")
+	outFile, err := os.Create("struct_base.def")
 	if err != nil {
 		fmt.Printf("出力ファイル作成失敗: %v\n", err)
 		return
@@ -26,55 +25,76 @@ func main() {
 	defer outFile.Close()
 	writer := bufio.NewWriter(outFile)
 
-	// 正規表現の定義
 	reLevel := regexp.MustCompile(`level\s*=\s*(\d+)`)
 	reName := regexp.MustCompile(`name\s*=\s*"([^"]*)"`)
 	rePic := regexp.MustCompile(`pic\s*=\s*"([^"]*)"`)
 	reOccurs := regexp.MustCompile(`occurs\s*=\s*(\d+)`)
 
-	// カレントディレクトリのJavaファイルを走査
 	files, _ := os.ReadDir(".")
 
 	for _, file := range files {
 		if !file.IsDir() && filepath.Ext(file.Name()) == ".java" {
-			// 1. ファイルごとにデータを抽出
 			items := processJavaFile(file.Name(), reLevel, reName, rePic, reOccurs)
 
-			// 2. 出力ファイルにセクション区切りを書き込む
-			fmt.Fprintf(writer, "\n================================================================================\n")
-			writer.WriteString(fmt.Sprintf(" SOURCE FILE: %s\n", file.Name()))
-			fmt.Fprintf(writer, "================================================================================\n")
-			writer.WriteString(fmt.Sprintf("%-3s | %-40s | %s\n", "LV", "NAME (EXTENDED)", "PIC"))
-			fmt.Fprintf(writer, "--------------------------------------------------------------------------------\n")
+			// 拡張子を除いたファイル名を取得
+			baseName := strings.TrimSuffix(file.Name(), filepath.Ext(file.Name()))
 
-			if len(items) == 0 {
-				writer.WriteString(" (有効な項目は見つかりませんでした)\n")
-			} else {
-				for _, it := range items {
-					writer.WriteString(fmt.Sprintf("%02d  | %-40s | %s\n", it.Level, it.Name, it.Pic))
+			// 指定の構造体レイアウトで書き出し
+			writer.WriteString(fmt.Sprintf("struct %s {\n", baseName))
+
+			for _, it := range items {
+				byteSize := calculateByteSize(it.Pic)
+				if byteSize > 0 {
+					// 縦を揃えず、BYTEの後と変数名の後に1つずつスペースを入れる形式
+					writer.WriteString(fmt.Sprintf("\tBYTE\t%s[%d]\n", it.Name, byteSize))
 				}
 			}
-			writer.Flush() // バッファを書き出し
+			writer.WriteString("}\n\n")
+			writer.Flush()
 		}
 	}
-
-	fmt.Println("抽出完了: analysis_result.txt を確認してください。")
+	fmt.Println("処理完了: output_structs.txt")
 }
 
-// OCCURS展開対応
+// PIC句からバイト数を算出するロジック
+func calculateByteSize(pic string) int {
+	if pic == "" {
+		return 0
+	}
+
+	reNum := regexp.MustCompile(`\((\d+)\)`)
+	match := reNum.FindStringSubmatch(pic)
+	if len(match) < 2 {
+		return 0
+	}
+	n, _ := strconv.Atoi(match[1])
+
+	isPacked := strings.Contains(pic, "PACKED-DECIMAL")
+
+	switch {
+	case strings.HasPrefix(pic, "X"):
+		return n
+	case strings.HasPrefix(pic, "N"):
+		return n * 2
+	case strings.HasPrefix(pic, "9") || strings.HasPrefix(pic, "S9"):
+		if isPacked {
+			// (n + 1) / 2 の整数除算（切り上げ相当）
+			return (n + 1) / 2
+		}
+		return n
+	default:
+		return 0
+	}
+}
+
+// ファイル読み込みとOCCURS展開ロジック
 func processJavaFile(filename string, reL, reN, reP, reO *regexp.Regexp) []Item {
 	var items []Item
 	var occursBuffer []Item
-	occursCount := 0
-	occursParentLevel := 0
-	inOccurs := false
+	occursCount, occursParentLevel, inOccurs := 0, 0, false
 
-	file, err := os.Open(filename)
-	if err != nil {
-		return items
-	}
+	file, _ := os.Open(filename)
 	defer file.Close()
-
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -89,14 +109,12 @@ func processJavaFile(filename string, reL, reN, reP, reO *regexp.Regexp) []Item 
 		mPic := reP.FindStringSubmatch(line)
 		mOccurs := reO.FindStringSubmatch(line)
 
-		// OCCURS終了判定
 		if inOccurs && lvl <= occursParentLevel {
 			expandOccurs(&items, occursBuffer, occursCount)
 			inOccurs = false
 			occursBuffer = nil
 		}
 
-		// 新規OCCURS開始判定
 		if len(mOccurs) == 2 {
 			inOccurs = true
 			occursCount, _ = strconv.Atoi(mOccurs[1])
@@ -116,7 +134,6 @@ func processJavaFile(filename string, reL, reN, reP, reO *regexp.Regexp) []Item 
 			items = append(items, newItem)
 		}
 	}
-
 	if inOccurs {
 		expandOccurs(&items, occursBuffer, occursCount)
 	}

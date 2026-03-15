@@ -1,3 +1,5 @@
 *.txt
 *csv
 makeStructOfCopyStatement/*.java
+makeStructOfCopyStatement/*.def
+makeStructOfCopyStatement/*.exe
