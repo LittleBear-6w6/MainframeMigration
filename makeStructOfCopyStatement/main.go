@@ -46,10 +46,10 @@ func main() {
 				byteSize := calculateByteSize(it.Pic)
 				if byteSize > 0 {
 					// 縦を揃えず、BYTEの後と変数名の後に1つずつスペースを入れる形式
-					writer.WriteString(fmt.Sprintf("\tBYTE\t%s[%d]\n", it.Name, byteSize))
+					writer.WriteString(fmt.Sprintf("\tBYTE\t%s[%d];\n", it.Name, byteSize))
 				}
 			}
-			writer.WriteString("}\n\n")
+			writer.WriteString("};\n\n")
 			writer.Flush()
 		}
 	}
