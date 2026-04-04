@@ -17,24 +17,41 @@ type Item struct {
 }
 
 func main() {
-	outFile, err := os.Create("struct_base.def")
+	//---設定項目---
+	inputDir := "./test"
+	outputDir := "./output"
+	outputFile := "struct_base.def"
+	//---設定項目ここまで---
+
+	// 出力ディレクトリが存在しない場合は作成
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		fmt.Printf("出力ディレクトリ作成失敗: %v\n", err)
+		return
+	}
+
+	outfile, err := os.Create(filepath.Join(outputDir, outputFile))
 	if err != nil {
 		fmt.Printf("出力ファイル作成失敗: %v\n", err)
 		return
 	}
-	defer outFile.Close()
-	writer := bufio.NewWriter(outFile)
+	defer outfile.Close()
+	writer := bufio.NewWriter(outfile)
 
 	reLevel := regexp.MustCompile(`level\s*=\s*(\d+)`)
 	reName := regexp.MustCompile(`name\s*=\s*"([^"]*)"`)
 	rePic := regexp.MustCompile(`pic\s*=\s*"([^"]*)"`)
 	reOccurs := regexp.MustCompile(`occurs\s*=\s*(\d+)`)
 
-	files, _ := os.ReadDir(".")
+	files, err := os.ReadDir(inputDir)
+	if err != nil {
+		fmt.Printf("入力ディレクトリの読み込み失敗: %v\n", err)
+		return
+	}
 
 	for _, file := range files {
 		if !file.IsDir() && filepath.Ext(file.Name()) == ".java" {
-			items := processJavaFile(file.Name(), reLevel, reName, rePic, reOccurs)
+			targetPath := filepath.Join(inputDir, file.Name())
+			items := processJavaFile(targetPath, reLevel, reName, rePic, reOccurs)
 
 			// 拡張子を除いたファイル名を取得
 			baseName := strings.TrimSuffix(file.Name(), filepath.Ext(file.Name()))
@@ -53,7 +70,7 @@ func main() {
 			writer.Flush()
 		}
 	}
-	fmt.Println("処理完了: output_structs.txt")
+	fmt.Printf("処理完了: %s 内のファイルを解析し、%s に出力しました\n", inputDir, filepath.Join(outputDir, outputFile))
 }
 
 // PIC句からバイト数を算出するロジック

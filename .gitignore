@@ -1,5 +1,6 @@
 *.txt
 *csv
-makeStructOfCopyStatement/*.java
-makeStructOfCopyStatement/*.def
-makeStructOfCopyStatement/*.exe
+makeStructOfCopyStatement/makeStructOfCopyStatement.exe
+makeStructOfCopyStatement/output/struct_base.def
+makeStructOfCopyStatement/test/occursTest.Code.java
+makeStructOfCopyStatement/test/simpleTestCode.java
